@@ -114,6 +114,7 @@ class TSS_OP_CStageSimulator():
 
             # set new output path
             _render_handle.set_output_folder(output_folder_path=_batch_output_folder)
+            _sensor_handle.set_output_folder(output_folder_path=_batch_output_folder)
 
             # execute create functions
             _sensor_handle.create()
@@ -138,7 +139,7 @@ class TSS_OP_CStageSimulator():
                                                                         str(_num_samples_per_batch*_num_batches))
 
                 # step all instances
-                _sensor_handle.step(keyframe=_frame)
+                _sensor_handle.step(keyframe=_frame, sample=(batch_ID-1)*_num_samples_per_batch+sample)
                 _env_handle.step(keyframe=_frame)
                 _asset_handle.step(keyframe=_frame)
                 _render_handle.step(keyframe=_frame)

@@ -57,7 +57,7 @@ for idx, annotation in enumerate(annotations):
         if isinstance(annotation["segmentation"], dict):
             img.putalpha(255)
             an_sg = annotation["segmentation"]
-            item = mask.decode(mask.frPyObjects(an_sg, im.size[1], im.size[0])).astype(np.uint8) * 255
+            item = mask.decode(mask.frPyObjects(an_sg, img.size[1], img.size[0])).astype(np.uint8) * 255
             item = Image.fromarray(item, mode='L')
             overlay = Image.new('RGBA', im.size)
             draw_ov = ImageDraw.Draw(overlay)

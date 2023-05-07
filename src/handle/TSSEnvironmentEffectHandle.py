@@ -45,7 +45,7 @@ class TSSEnvironmentEffectHandle(object):
 
         # reset vars ###################################################################################################
         self._effect_list = []
-        self._trigger_interval = 1
+        # self._trigger_interval = 1
         self._stepping_counter = 0
         self._background_strength = [1,1]
         self._tree = None
@@ -115,8 +115,9 @@ class TSSEnvironmentEffectHandle(object):
 
         self._cfg = cfg
 
-        if "stepInterval" in self._cfg:
-            self._trigger_interval = self._cfg["stepInterval"]
+        if "stepInterval" in self._cfg["GENERAL"]:
+            self._trigger_interval = self._cfg["GENERAL"]["stepInterval"]
+
 
 
     def _get_random_number(self,min_max_array):
@@ -204,7 +205,7 @@ class TSSEnvironmentEffectHandle(object):
             None
         """
 
-        self._stepping_counter += 1
+        
 
         # step for handle function #####################################################################################
         if (self._stepping_counter % self._trigger_interval) == 0:
@@ -237,4 +238,6 @@ class TSSEnvironmentEffectHandle(object):
 
             if "LOCAL" == _trigger_option:
                 effect_handle.step_module(keyframe=keyframe)
+
+        self._stepping_counter += 1
         ###################################################################################### end of step for modules #

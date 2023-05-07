@@ -1,0 +1,6 @@
+oaisys_tmp/*
+*.log
+*_pycache_*
+.vscode/*
+oaisys_data/*
+cfgExamples/*

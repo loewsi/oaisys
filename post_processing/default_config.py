@@ -11,7 +11,7 @@ _C.BATCH_GLOB="batch_*" # common pattern of the batch folders; normally this is 
 
 _C.OUT_FILE = "annotations" # output file name without ending, since the file extension depends on the FORMAT
 
-_C.SENSORS = ["sensor_1", "sensor_2"] # name of sensors which should be considered; if FORMAT=coco only one SENSOR is possible (still defined as list)
+_C.SENSORS = ["sensor_1"] # name of sensors which should be considered; if FORMAT=coco only one SENSOR is possible (still defined as list)
 
 # channel definitions
 # the "common" dict defines channels which are considered for every element, 
@@ -28,12 +28,13 @@ _C.SENSORS = ["sensor_1", "sensor_2"] # name of sensors which should be consider
 #}
 _C.DATA_DEF = [{
     'common': { # channels which are considered for every element in SENSOR list
-        "rgb":{"glob":"*rgb_00.png"}, 
+        "rgb":{"glob":"*rgb_*.png"},
+        "segmentation":{"glob":"*semantic_label_*.png"}
     },
     'sensor_1':{ # specific channel definitions for SENSOR member rgbLeft
-        #"inst_label":{"post_process":"denoise_label", "num_classes": 51, "glob":"*instance_label*"},
-        #"sem_label":{"post_process":"denoise_label", "num_classes": 15, "glob":"*semantic_label*"},
-        #"pinhole_depth":{"glob":"*pinhole_depth_00.exr", "post_process":"trim_channels"},
+        # "inst_label":{"post_process":"denoise_label", "num_classes": 51, "glob":"*instance_label*"},
+        "sem_label":{"post_process":"denoise_label", "num_classes": 15, "glob":"*semantic_label*"},
+        "pinhole_depth":{"glob":"*pinhole_depth_00.exr", "post_process":"trim_channels"},
         #"euclidean_depth":{"glob":"*depth_euclidean.exr", "post_process":"trim_channels"},
     },
     'sensor_2':{}

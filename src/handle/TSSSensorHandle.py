@@ -6,6 +6,7 @@ import numpy as np
 import csv
 import random
 import importlib
+import os
 
 from src.TSSBase import TSSBase
 
@@ -29,8 +30,12 @@ class TSSSensorHandle(TSSBase):
         self._sensor_movement_type_mapping = {                          # mapping to movement functions [dict]
                                                 "deterministic": self._deterministic,
                                                 "randomEuclidean": self._random_euclidean,
-                                                "randomEuclideanTarget": self._random_euclidean_target}
+                                                "randomEuclideanTarget": self._random_euclidean_target,
+                                                "randomEuclideanTrajectory": self._random_euclidean_trajectory,
+                                                "squareFollowEuclideanTrajectory": self._square_follow_euclidean_trajectory,
+                                                "straightLine": self._straight_line}
         self._roll_limits = [0,0]
+        self._outputPath = None
         ############################################################################################ end of class vars #
 
         # set correct module type
@@ -255,7 +260,7 @@ class TSSSensorHandle(TSSBase):
             _line_count = 0
 
             # iterate through csv lines ################################################################################
-            for row in csvReader:
+            for row in _csv_reader:
 
                 # def local pose var
                 _pose = np.zeros((8))
@@ -269,13 +274,13 @@ class TSSSensorHandle(TSSBase):
                 _pose[3] = float(row[3])  # posZ
                 
                 # read quaternion
-                _pose[4] = -float(row[5])  # quatW
-                _pose[5] = float(row[4])  # quatX
-                _pose[6] = float(row[7])  # quatY
-                _pose[7] = -float(row[6])  # quatZ
+                _pose[4] = float(row[4])  # quatW
+                _pose[5] = float(row[5])  # quatX
+                _pose[6] = float(row[6])  # quatY
+                _pose[7] = float(row[7])  # quatZ
 
                 # append retrieved pose sample to list
-                _pose_list.append(pose)
+                _pose_list.append(_pose)
             ######################################################################### end of iterate through csv lines #
         ###################################################################### end of go through csv file and get data #
 
@@ -312,7 +317,7 @@ class TSSSensorHandle(TSSBase):
         """
 
         # create random poses
-        _pose_list = _create_euclidean_random_sensor_movements(min_pos=cfg["randomEuclideanPosMin"],
+        _pose_list = self._create_euclidean_random_sensor_movements(min_pos=cfg["randomEuclideanPosMin"],
                                                             max_pos=cfg["randomEuclideanPosMax"],
                                                             num_samples=cfg["numSamples"],
                                                             min_euler=cfg["randomEuclideanEulerMin"],
@@ -341,6 +346,70 @@ class TSSSensorHandle(TSSBase):
                                                                         max_target_pos=cfg["randomTargetPosMax"],
                                                                         min_target_euler=cfg["randomTargetEulerMin"],
                                                                         max_target_euler=cfg["randomTargetEulerMax"])
+
+        # return movement lists
+        return _pose_list, _target_pose_list
+
+
+    def _random_euclidean_trajectory(self, cfg):
+        """ random euclidean trajectory;  create pose on trajectory facing target
+        Args:
+            cfg:                        general part of cfg from sensor handle [dict] 
+        Returns:
+            pose_list:                  list of trajectory poses [list]
+            target_pose_list:           list of target poses [list]
+        """
+
+        # create random poses for base and target
+        _pose_list, _target_pose_list =  self._create_euclidean_random_sensor_trajectory(\
+                                                                        min_pos=cfg["randomEuclideanPosMin"],
+                                                                        max_pos=cfg["randomEuclideanPosMax"],
+                                                                        num_samples=cfg["numSamples"],
+                                                                        min_target_pos=cfg["randomTargetPosMin"],
+                                                                        max_target_pos=cfg["randomTargetPosMax"],
+                                                                        min_target_euler=cfg["randomTargetEulerMin"],
+                                                                        max_target_euler=cfg["randomTargetEulerMax"])
+
+        # return movement lists
+        return _pose_list, _target_pose_list
+
+
+    def _square_follow_euclidean_trajectory(self, cfg):
+        """ random euclidean trajectory;  create pose on trajectory facing target
+        Args:
+            cfg:                        general part of cfg from sensor handle [dict] 
+        Returns:
+            pose_list:                  list of trajectory poses [list]
+            target_pose_list:           list of target poses [list]
+        """
+
+        # create random poses for base and target
+        _pose_list, _target_pose_list =  self._create_square_follow_euclidean_sensor_trajectory(\
+                                                                        min_pos=cfg["randomEuclideanPosMin"],
+                                                                        max_pos=cfg["randomEuclideanPosMax"],
+                                                                        num_samples=cfg["numSamples"],
+                                                                        min_target_pos=cfg["randomTargetPosMin"],
+                                                                        max_target_pos=cfg["randomTargetPosMax"],
+                                                                        min_target_euler=cfg["randomTargetEulerMin"],
+                                                                        max_target_euler=cfg["randomTargetEulerMax"])
+
+        # return movement lists
+        return _pose_list, _target_pose_list
+
+    def _straight_line(self, cfg):
+        """ straight line trajectory;  create pose on trajectory facing target straight ahead
+        Args:
+            cfg:                        general part of cfg from sensor handle [dict] 
+        Returns:
+            pose_list:                  list of trajectory poses [list]
+            target_pose_list:           list of target poses [list]
+        """
+
+        # create random poses for base and target
+        _pose_list, _target_pose_list =  self._create_straight_line_sensor_trajectory(\
+                                                                        min_pos=cfg["randomEuclideanPosMin"],
+                                                                        max_pos=cfg["randomEuclideanPosMax"],
+                                                                        num_samples=cfg["numSamples"])
 
         # return movement lists
         return _pose_list, _target_pose_list
@@ -379,6 +448,175 @@ class TSSSensorHandle(TSSBase):
         _pose[0] = random.uniform(min_pos[0], max_pos[0])
         _pose[1] = random.uniform(min_pos[1], max_pos[1])
         _pose[2] = random.uniform(min_pos[2], max_pos[2])
+
+        # random angles
+        _euler[0] = random.uniform(min_euler[0], max_euler[0])
+        _euler[1] = random.uniform(min_euler[1], max_euler[1])
+        _euler[2] = random.uniform(min_euler[2], max_euler[2])
+
+        # convert to quaternion
+        _pose[3:7] = self._euler_to_quaternion(angles=_euler)
+
+        # return random pose sample
+        return _pose
+
+    def _create_square_pose_sample(self, min_pos, max_pos, min_euler, max_euler, index, max_index):
+        """ create random pose
+        Args:
+            min_pos:        boundary vlaues for minimum position [x,y,z] [numpy]
+            max_pos:        boundary vlaues for maximum position [x,y,z] [numpy]
+            min_euler:       boundary vlaues for minimum quaternion [angle_x,angle_y,angle_z] [numpy]
+            max_euler:       boundary vlaues for maximum quaternion [angle_x,angle_y,angle_z] [numpy]
+            index:          current index of pose on square
+            max_index:      total number of poses to be sampled on square
+        Returns:
+            _pose:          6D random pose vector (7 dim) [numpy] 
+        """
+
+        # def local var
+        _pose = np.zeros((7))
+        _euler = np.zeros((3))
+
+        # get positions
+        _square_position = index/max_index*4
+        if int(_square_position) == 0:
+            _pose[0] = min_pos[0] + _square_position * (max_pos[0]-min_pos[0])
+            _pose[1] = min_pos[1]
+        if int(_square_position) == 1:
+            _pose[0] = max_pos[0]
+            _pose[1] = min_pos[1] + (_square_position - 1) * (max_pos[1] - min_pos[1])
+        if int(_square_position) == 2:
+            _pose[0] = max_pos[0] - (_square_position - 2) * (max_pos[0]-min_pos[0])
+            _pose[1] = max_pos[1]
+        if int(_square_position) == 3:
+            _pose[0] = min_pos[0]
+            _pose[1] = max_pos[1] - (_square_position - 3) * (max_pos[1] - min_pos[1])
+        _pose[2] = random.uniform(min_pos[2], max_pos[2])
+
+        # random angles
+        _euler[0] = random.uniform(min_euler[0], max_euler[0])
+        _euler[1] = random.uniform(min_euler[1], max_euler[1])
+        _euler[2] = random.uniform(min_euler[2], max_euler[2])
+
+        # convert to quaternion
+        _pose[3:7] = self._euler_to_quaternion(angles=_euler)
+
+        # return random pose sample
+        return _pose
+
+    def _create_trajectory_pose_sample(  self,
+                                    last_pose, last_target,
+                                    min_step_distance, max_step_distance,
+                                    min_pos, max_pos,
+                                    min_euler, max_euler):
+        print("create pose sample")
+        """ create random pose
+        Args:
+            last_pose:          last position [x,y,z] [numpy]
+            last_target:        last target position [x,y,z] [numpy]
+            min_step distance:  boundary vlaues for minimum step distance   
+            max_step distance:  boundary vlaues for maximum step distance  
+            min_pos:            boundary vlaues for minimum position [x,y,z] [numpy]
+            max_pos:            boundary vlaues for maximum position [x,y,z] [numpy]
+            min_euler:          boundary vlaues for minimum quaternion [angle_x,angle_y,angle_z] [numpy]
+            max_euler:          boundary vlaues for maximum quaternion [angle_x,angle_y,angle_z] [numpy]
+        Returns:
+            _pose:          6D random pose vector (7 dim) [numpy] 
+        """
+        
+        # def local var
+        _pose = np.zeros((7))
+        _euler = np.zeros((3))
+        _direction = np.zeros((3))
+
+        # direction of next position
+        _direction = last_target - last_pose
+        _direction = _direction / np.linalg.norm(_direction)
+
+        # next position
+        _pose[0:3] = last_pose + _direction * random.uniform(min_step_distance, max_step_distance)
+        _pose[0] = max(_pose[0], min_pos[0])
+        _pose[0] = min(_pose[0], max_pos[0])
+        _pose[1] = max(_pose[1], min_pos[1])
+        _pose[1] = min(_pose[1], max_pos[1])
+        _pose[2] = max(_pose[2], min_pos[2])
+        _pose[2] = min(_pose[2], max_pos[2])
+
+        # random angles
+        _euler[0] = random.uniform(min_euler[0], max_euler[0])
+        _euler[1] = random.uniform(min_euler[1], max_euler[1])
+        _euler[2] = random.uniform(min_euler[2], max_euler[2])
+
+        # convert to quaternion
+        _pose[3:7] = self._euler_to_quaternion(angles=_euler)
+
+        # return random pose sample
+        return _pose
+
+
+
+    def _create_trajectory_target_sample(  self,
+                                    last_target,
+                                    min_step_distance, max_step_distance,
+                                    min_pos, max_pos,
+                                    min_euler, max_euler,
+                                    second_last_target=None,
+                                    direction_noise=0.3):
+        print("create target sample")
+        """ create random pose
+        Args:
+            last_target:                    last target position [x,y,z] [numpy]
+            second_last_target (optional):  second last target position [x,y,z] [numpy]
+            min_step distance:              boundary vlaues for minimum step distance   
+            max_step distance:              boundary vlaues for maximum step distance  
+            min_pos:                        boundary vlaues for minimum position [x,y,z] [numpy]
+            max_pos:                        boundary vlaues for maximum position [x,y,z] [numpy]
+            min_euler:                      boundary vlaues for minimum quaternion [angle_x,angle_y,angle_z] [numpy]
+            max_euler:                      boundary vlaues for maximum quaternion [angle_x,angle_y,angle_z] [numpy]
+        direction_noise (optional):         std of normal noise on direction, default 0.3
+        Returns:
+            _pose:          6D random pose vector (7 dim) [numpy] 
+        """
+
+        # def local var
+        _pose = np.zeros((7))
+        _euler = np.zeros((3))
+        _direction = np.zeros((3))
+
+        # next position when second last target is given
+        if second_last_target is not None:
+            # direction of next position
+            _direction = last_target - second_last_target
+            _direction[0] += np.random.normal(scale=direction_noise)
+            _direction[1] += np.random.normal(scale=direction_noise)
+            _direction[2] += np.random.normal(scale=direction_noise)
+            _direction = _direction / np.linalg.norm(_direction)
+
+            # next position
+            _pose[0:3] = last_target + _direction * random.uniform(min_step_distance, max_step_distance)
+            _pose[0] = max(_pose[0], min_pos[0])
+            _pose[0] = min(_pose[0], max_pos[0])
+            _pose[1] = max(_pose[1], min_pos[1])
+            _pose[1] = min(_pose[1], max_pos[1])
+            _pose[2] = max(_pose[2], min_pos[2])
+            _pose[2] = min(_pose[2], max_pos[2])
+
+        # next position in random direction
+        else:
+            # direction of next position
+            _direction[0] = np.random.normal()
+            _direction[1] = np.random.normal()
+            _direction[2] = np.random.normal()
+            _direction = _direction / np.linalg.norm(_direction)
+
+            # next position
+            _pose[0:3] = last_target + _direction * random.uniform(min_step_distance, max_step_distance)
+            _pose[0] = max(_pose[0], min_pos[0])
+            _pose[0] = min(_pose[0], max_pos[0])
+            _pose[1] = max(_pose[1], min_pos[1])
+            _pose[1] = min(_pose[1], max_pos[1])
+            _pose[2] = max(_pose[2], min_pos[2])
+            _pose[2] = min(_pose[2], max_pos[2])
 
         # random angles
         _euler[0] = random.uniform(min_euler[0], max_euler[0])
@@ -467,6 +705,249 @@ class TSSSensorHandle(TSSBase):
             return _pose_list
 
 
+    def _create_euclidean_random_sensor_trajectory(  self,
+                                                min_pos, max_pos,
+                                                num_samples,
+                                                min_euler=[0,0,0], max_euler=[0,0,0],
+                                                min_target_pos=[0,0,0], max_target_pos=[0,0,0],
+                                                min_target_euler=[0,0,0], max_target_euler=[0,0,0],
+                                                min_step_distance=1., max_step_distance=2.):
+        """ create list of poses on a trajectory
+        Args:
+            min_pos:                            boundary values for minimum position [x,y,z] [numpy]
+            max_pos:                            boundary values for maximum position [x,y,z] [numpy]
+            num_samples:                        number of pose samples [uint]
+            min_euler (optional):               boundary values for minimum quaternion [angle_x,angle_y,angle_z] [numpy]
+            max_euler (optional):               boundary values for maximum quaternion [angle_x,angle_y,angle_z] [numpy]
+            min_target_pos:                     boundary values for minimum target position [x,y,z] [numpy]
+            max_target_pos:                     boundary values for maximum target position [x,y,z] [numpy]
+            min_target_euler (optional):        boundary values for minimum target quaternion [angle_x,angle_y,angle_z] 
+                                                                                                                [numpy]
+            max_target_euler (optional):        boundary values for maximum target quaternion [angle_x,angle_y,angle_z] 
+                                                                                                                [numpy]
+        Returns:
+            _pose, _target_pose (optional):     return random list of poses [numpy]
+        """
+
+        # def of local vars ############################################################################################
+        _pose_list = []
+        _target_pose_list = []
+        ##################################################################################### end of def of local vars #
+
+        # create num_samples samples of random poses ###################################################################
+        for pose_index in range(0,num_samples):
+            # create var
+            _pose = np.zeros((8))
+
+            # frame ID
+            _pose[0] = pose_index + 1
+
+            # create random start pose sample for base 
+            if not pose_index:
+                _pose[1:] = self._create_random_pose_sample(min_pos=np.array(min_pos)/(max_step_distance*num_samples),
+                                                            max_pos=np.array(max_pos)/(max_step_distance*num_samples),
+                                                            min_euler=min_euler,
+                                                            max_euler=max_euler)
+            # create next pose headed to target
+            else:
+                _pose[1:] = self._create_trajectory_pose_sample(last_pose=_pose_list[-1][1:4],
+                                                            last_target=_target_pose_list[-1][1:4],
+                                                            min_step_distance=min_step_distance,
+                                                            max_step_distance=max_step_distance,
+                                                            min_pos=min_pos,
+                                                            max_pos=max_pos,
+                                                            min_euler=min_euler,
+                                                            max_euler=max_euler)
+            # add pose sample to list
+            _pose_list.append(_pose)
+
+            # create var
+            _target_pose = np.zeros((8))
+
+            # frame ID
+            _target_pose[0] = pose_index + 1
+
+            # create random start pose sample for target
+            if not pose_index:
+                _target_pose[1:] = self._create_random_pose_sample( min_pos=min_target_pos,
+                                                                        max_pos=max_target_pos,
+                                                                        min_euler=min_target_euler,
+                                                                        max_euler=max_target_euler)
+            # create second pose for target in random direction
+            elif pose_index == 1:
+                _target_pose[1:] = self._create_trajectory_target_sample(last_target=_target_pose_list[-1][1:4],
+                                                            second_last_target=None,
+                                                            min_step_distance=min_step_distance,
+                                                            max_step_distance=max_step_distance,
+                                                            min_pos=min_target_pos,
+                                                            max_pos=max_target_pos,
+                                                            min_euler=min_target_euler,
+                                                            max_euler=max_target_euler)
+
+            # create next pose for target
+            else:
+                _target_pose[1:] = self._create_trajectory_target_sample(last_target=_target_pose_list[-1][1:4],
+                                                            second_last_target=_target_pose_list[-2][1:4],
+                                                            min_step_distance=max_step_distance,
+                                                            max_step_distance=max_step_distance,
+                                                            min_pos=min_target_pos,
+                                                            max_pos=max_target_pos,
+                                                            min_euler=min_target_euler,
+                                                            max_euler=max_target_euler)
+
+            # set offset
+            _target_pose[1:4] += _pose[1:4]
+
+            # add pose sample to list
+            _target_pose_list.append(_target_pose)
+        ############################################################ end of create num_samples samples of random poses #
+
+        # return requested values
+        return _pose_list, _target_pose_list
+
+
+    def _create_square_follow_euclidean_sensor_trajectory(  self,
+                                                min_pos, max_pos,
+                                                num_samples,
+                                                min_euler=[0,0,0], max_euler=[0,0,0],
+                                                min_target_pos=[0,0,0], max_target_pos=[0,0,0],
+                                                min_target_euler=[0,0,0], max_target_euler=[0,0,0],
+                                                min_step_distance=1., max_step_distance=2.):
+        """ create list of poses on a trajectory following a target trajectory on a square
+        Args:
+            min_pos:                            boundary values for minimum position [x,y,z] [numpy]
+            max_pos:                            boundary values for maximum position [x,y,z] [numpy]
+            num_samples:                        number of pose samples [uint]
+            min_euler (optional):               boundary values for minimum quaternion [angle_x,angle_y,angle_z] [numpy]
+            max_euler (optional):               boundary values for maximum quaternion [angle_x,angle_y,angle_z] [numpy]
+            min_target_pos:                     boundary values for minimum target position [x,y,z] [numpy]
+            max_target_pos:                     boundary values for maximum target position [x,y,z] [numpy]
+            min_target_euler (optional):        boundary values for minimum target quaternion [angle_x,angle_y,angle_z] 
+                                                                                                                [numpy]
+            max_target_euler (optional):        boundary values for maximum target quaternion [angle_x,angle_y,angle_z] 
+                                                                                                                [numpy]
+        Returns:
+            _pose, _target_pose (optional):     return random list of poses [numpy]
+        """
+
+        # def of local vars ############################################################################################
+        _pose_list = []
+        _target_pose_list = []
+        ##################################################################################### end of def of local vars #
+
+        # create num_samples samples of random poses ###################################################################
+        for pose_index in range(0,num_samples):
+            # create var
+            _pose = np.zeros((8))
+
+            # frame ID
+            _pose[0] = pose_index + 1
+
+            # create random start pose sample for base 
+            if not pose_index:
+                _pose[1:] = self._create_random_pose_sample(min_pos=[0,0,0],
+                                                            max_pos=[1,1,1],
+                                                            min_euler=min_euler,
+                                                            max_euler=max_euler)
+            # create next pose headed to target
+            else:
+                _pose[1:] = self._create_trajectory_pose_sample(last_pose=_pose_list[-1][1:4],
+                                                            last_target=_target_pose_list[-1][1:4],
+                                                            min_step_distance=min_step_distance,
+                                                            max_step_distance=max_step_distance,
+                                                            min_pos=min_pos,
+                                                            max_pos=max_pos,
+                                                            min_euler=min_euler,
+                                                            max_euler=max_euler)
+            # add pose sample to list
+            _pose_list.append(_pose)
+
+            # create var
+            _target_pose = np.zeros((8))
+
+            # frame ID
+            _target_pose[0] = pose_index + 1
+
+            # create pose sample for target on square
+            _target_pose[1:] = self._create_square_pose_sample( min_pos=min_target_pos,
+                                                                        max_pos=max_target_pos,
+                                                                        min_euler=min_target_euler,
+                                                                        max_euler=max_target_euler,
+                                                                        index=pose_index,
+                                                                        max_index=num_samples)
+
+            # set offset
+            _target_pose[1:4] += _pose[1:4]
+
+            # add pose sample to list
+            _target_pose_list.append(_target_pose)
+        ############################################################ end of create num_samples samples of random poses #
+
+        # return requested values
+        return _pose_list, _target_pose_list
+
+
+    def _create_straight_line_sensor_trajectory(  self,
+                                                min_pos, max_pos,
+                                                num_samples):
+        """ create list of poses on a straight trajectory
+        Args:
+            min_pos:                            boundary values for minimum position [x,y,z] [numpy]
+            max_pos:                            boundary values for maximum position [x,y,z] [numpy]
+            num_samples:                        number of pose samples [uint]
+        Returns:
+            _pose, _target_pose (optional):     return list of poses [numpy]
+        """
+
+        # def of local vars ############################################################################################
+        _pose_list = []
+        _target_pose_list = []
+        ##################################################################################### end of def of local vars #
+
+        # create samples ###################################################################
+        for pose_index in range(0,num_samples):
+            # create var
+            _pose = np.zeros((8))
+
+            # frame ID
+            _pose[0] = pose_index + 1
+
+            # create pose sample for base 
+            _euler = np.zeros((3))
+
+            # interpolate positions
+            _pose[1] = min_pos[0] + pose_index * (max_pos[0] - min_pos[0])/num_samples
+            _pose[2] = min_pos[1] + pose_index * (max_pos[1] - min_pos[1])/num_samples
+            _pose[3] = min_pos[2] + pose_index * (max_pos[2] - min_pos[2])/num_samples
+
+            # convert to quaternion
+            _pose[4:8] = self._euler_to_quaternion(angles=_euler)
+                # add pose sample to list
+            _pose_list.append(_pose)
+
+            # create var
+            _target_pose = np.zeros((8))
+
+            # frame ID
+            _target_pose[0] = pose_index + 1
+
+            # create pose sample for target
+            _target_pose[1] = max_pos[0] - min_pos[0] + _pose[1]
+            _target_pose[2] = max_pos[1] - min_pos[1] + _pose[2]
+            _target_pose[3] = max_pos[2] - min_pos[2] + _pose[3]
+
+            # convert to quaternion
+            _target_pose[4:8] = self._euler_to_quaternion(angles=_euler)
+
+            # add pose sample to list
+            _target_pose_list.append(_target_pose)
+        ############################################################ end of create samples#
+
+        # return requested values
+        return _pose_list, _target_pose_list
+
+
+
     def _pose_interpolate(self, pose_list, interpolation_mode="static"):
         """ interpolate missing poses in pose_list with a variety of options
         Args:
@@ -502,6 +983,9 @@ class TSSSensorHandle(TSSBase):
         return _pose_list
 
 
+    def set_output_folder(self,output_folder_path):
+        self._outputPath = output_folder_path
+    
     def create(self):
         """ create function
         Args:
@@ -523,7 +1007,7 @@ class TSSSensorHandle(TSSBase):
         self._attach_sensors_to_base()
 
 
-    def step(self, keyframe):
+    def step(self, keyframe, sample):
         """ overwrite step function
         Args:
             keyframe:       current frame number; if value > -1, this should enable also the setting of a keyframe [int]
@@ -620,6 +1104,20 @@ class TSSSensorHandle(TSSBase):
                 # set interpolation of all keyframes####################################################################
             ########################################################################### end of set keyframe for target #
         ############################################################################ end of set keyframes if requested #
+        
+        # save pose to file
+        _directory = os.path.join(self._outputPath, 'sensor_1')
+        if not os.path.exists(_directory):
+            os.makedirs(_directory)
+        with open(os.path.join(_directory, f'{sample+1:04d}sensor_1_poses.txt'), 'w') as f:
+            f.write(f'{self._sensor_base.matrix_world.to_translation().x}\n')
+            f.write(f'{self._sensor_base.matrix_world.to_translation().y}\n')
+            f.write(f'{self._sensor_base.matrix_world.to_translation().z}\n')
+            f.write(f'{self._sensor_base.matrix_world.to_quaternion().x}\n')
+            f.write(f'{self._sensor_base.matrix_world.to_quaternion().y}\n')
+            f.write(f'{self._sensor_base.matrix_world.to_quaternion().z}\n')
+            f.write(f'{self._sensor_base.matrix_world.to_quaternion().w}\n')
+
 
 
     def get_sensor_list(self):
